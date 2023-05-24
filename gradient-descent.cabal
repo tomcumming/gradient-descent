@@ -34,4 +34,6 @@ test-suite gradient-descent-test
     hs-source-dirs:   test
     main-is:          Main.hs
     build-depends:
-        gradient-descent
+        gradient-descent,
+        tasty,
+        falsify
