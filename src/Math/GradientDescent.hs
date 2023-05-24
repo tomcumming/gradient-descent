@@ -39,21 +39,21 @@ gradientDescent ::
   [Either a (Solution n a)]
 gradientDescent Config {..} errFn initial =
   let initialErr = errFn initial
-   in Right (Solution initialErr initial) : go cfgInitialStepSize initial (errFn initial)
+   in Right (Solution initialErr initial) : findSolution cfgInitialStepSize initial (errFn initial)
   where
-    go :: a -> Sized Vector n a -> a -> [Either a (Solution n a)]
-    go stepSize xs err = go2 True stepSize xs err (gradient errFn xs)
+    findSolution :: a -> Sized Vector n a -> a -> [Either a (Solution n a)]
+    findSolution stepSize xs err = findStep True stepSize xs err (gradient errFn xs)
 
-    go2 :: Bool -> a -> Sized Vector n a -> a -> Sized Vector n a -> [Either a (Solution n a)]
-    go2 firstTry stepSize xs err xs' =
-      let nextXs = Sized.zipWith (\x x' -> x - x' * stepSize) xs xs'
+    findStep :: Bool -> a -> Sized Vector n a -> a -> Sized Vector n a -> [Either a (Solution n a)]
+    findStep firstTry stepSize xs err xs' =
+      let nextXs = Sized.zipWithSame (\x x' -> x - x' * stepSize) xs xs'
           nextErr = errFn nextXs
           shrunk = cfgShrink * stepSize
        in if nextErr < err
             then
               Right (Solution nextErr nextXs)
-                : go (stepSize * if firstTry then cfgGrow else 1) nextXs nextErr
-            else Left shrunk : go2 False shrunk xs err xs'
+                : findSolution (stepSize * if firstTry then cfgGrow else 1) nextXs nextErr
+            else Left shrunk : findStep False shrunk xs err xs'
 
 gradient :: (KnownNat n, Fractional a) => ErrorFunc n -> Sized Vector n a -> Sized Vector n a
 gradient errFn xs = (\(AD.Value _ x') -> x') <$> vals
