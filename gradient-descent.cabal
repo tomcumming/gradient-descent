@@ -35,5 +35,6 @@ test-suite gradient-descent-test
     main-is:          Main.hs
     build-depends:
         gradient-descent,
+        type-natural,
         tasty,
         falsify
