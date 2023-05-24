@@ -14,7 +14,7 @@ instance Num a => Num (Value a) where
   abs = error "Value abs"
   signum = error "Value signum"
   fromInteger = constant . fromInteger
-  negate = (*) (-1)
+  negate = (*) (fromInteger (-1))
 
 instance Fractional a => Fractional (Value a) where
   fromRational = constant . fromRational
