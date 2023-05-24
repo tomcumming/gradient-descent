@@ -1,7 +1,9 @@
 module Math.GradientDescent
   ( ErrorFunc,
     Config (..),
+    Solution (..),
     gradientDescent,
+    gradient,
   )
 where
 
@@ -35,14 +37,16 @@ gradientDescent ::
   ErrorFunc n ->
   Sized Vector n a ->
   [Either a (Solution n a)]
-gradientDescent Config {..} errFn initial = go cfgInitialStepSize initial (errFn initial)
+gradientDescent Config {..} errFn initial =
+  let initialErr = errFn initial
+   in Right (Solution initialErr initial) : go cfgInitialStepSize initial (errFn initial)
   where
     go :: a -> Sized Vector n a -> a -> [Either a (Solution n a)]
     go stepSize xs err = go2 True stepSize xs err (gradient errFn xs)
 
     go2 :: Bool -> a -> Sized Vector n a -> a -> Sized Vector n a -> [Either a (Solution n a)]
     go2 firstTry stepSize xs err xs' =
-      let nextXs = Sized.zipWith (\x x' -> x + x' * stepSize) xs xs'
+      let nextXs = Sized.zipWith (\x x' -> x - x' * stepSize) xs xs'
           nextErr = errFn nextXs
           shrunk = cfgShrink * stepSize
        in if nextErr < err
