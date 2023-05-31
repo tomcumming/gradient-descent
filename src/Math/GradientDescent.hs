@@ -14,7 +14,7 @@ import Data.Vector (Vector)
 import GHC.TypeLits (KnownNat)
 import Math.AD qualified as AD
 
-type ErrorFunc n = forall b. Fractional b => Sized Vector n b -> b
+type ErrorFunc c n = forall b. c b => Sized Vector n b -> b
 
 data Config a = Config
   { cfgInitialStepSize :: a,
@@ -31,10 +31,10 @@ data Solution n a = Solution
 
 -- | Returns a stream of either a new step size (after failing) or a better solution
 gradientDescent ::
-  forall n a.
-  (KnownNat n, Fractional a, Ord a) =>
+  forall c n a.
+  (c a, c (AD.Value a), KnownNat n, Ord a, Num a) =>
   Config a ->
-  ErrorFunc n ->
+  ErrorFunc c n ->
   Sized Vector n a ->
   [Either a (Solution n a)]
 gradientDescent Config {..} errFn initial =
@@ -42,7 +42,7 @@ gradientDescent Config {..} errFn initial =
    in Right (Solution initialErr initial) : findSolution cfgInitialStepSize initial (errFn initial)
   where
     findSolution :: a -> Sized Vector n a -> a -> [Either a (Solution n a)]
-    findSolution stepSize xs err = findStep True stepSize xs err (gradient errFn xs)
+    findSolution stepSize xs err = findStep True stepSize xs err (gradient @c errFn xs)
 
     findStep :: Bool -> a -> Sized Vector n a -> a -> Sized Vector n a -> [Either a (Solution n a)]
     findStep firstTry stepSize xs err xs' =
@@ -55,7 +55,12 @@ gradientDescent Config {..} errFn initial =
                 : findSolution (stepSize * if firstTry then cfgGrow else 1) nextXs nextErr
             else Left shrunk : findStep False shrunk xs err xs'
 
-gradient :: (KnownNat n, Fractional a) => ErrorFunc n -> Sized Vector n a -> Sized Vector n a
+gradient ::
+  forall c n a.
+  (c a, c (AD.Value a), KnownNat n, Num a) =>
+  ErrorFunc c n ->
+  Sized Vector n a ->
+  Sized Vector n a
 gradient errFn xs = (\(AD.Value _ x') -> x') <$> vals
   where
     vals =

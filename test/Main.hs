@@ -13,7 +13,7 @@ import Test.Falsify.Range qualified as Range
 import Test.Tasty (defaultMain)
 import Test.Tasty.Falsify (Property, gen, testProperty)
 
-easyConcave :: KnownNat n => Sized Vector n Double -> ErrorFunc n
+easyConcave :: KnownNat n => Sized Vector n Double -> ErrorFunc Fractional n
 easyConcave origin =
   sum
     . Sized.zipWithSame
@@ -31,7 +31,7 @@ easyConcaveProp = do
     replicateM 3 $
       realToFrac <$> gen (Gen.integral $ Range.withOrigin (-10, 10) (0 :: Int))
   let origin :: Sized Vector 3 Double = Sized.unsafeFromList' [x, y, z]
-  let steps = take 10 $ gradientDescent cfg (easyConcave origin) zero
+  let steps = take 10 $ gradientDescent @Fractional cfg (easyConcave origin) zero
   let solutions = concatMap (either (const []) pure) steps
   case listToMaybe (reverse solutions) of
     Nothing -> fail "No solutions found"
