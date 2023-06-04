@@ -17,12 +17,13 @@ import Math.AD qualified as AD
 
 type ErrorFunc c n = forall b. c b => Sized Vector n b -> b
 
-data Config a = Config
+data Config n a = Config
   { cfgInitialStepSize :: a,
     cfgGrow :: a,
-    cfgShrink :: a
+    cfgShrink :: a,
+    -- | Normalize parameters after moving down gradient
+    cfgNormalize :: Sized Vector n a -> Sized Vector n a
   }
-  deriving (Show)
 
 data Solution n a = Solution
   { solError :: a,
@@ -30,19 +31,20 @@ data Solution n a = Solution
   }
   deriving (Show)
 
-defaultConfig :: Fractional a => Config a
+defaultConfig :: Fractional a => Config n a
 defaultConfig =
   Config
     { cfgInitialStepSize = 1,
       cfgGrow = 2,
-      cfgShrink = 0.5
+      cfgShrink = 0.5,
+      cfgNormalize = id
     }
 
 -- | Returns a stream of either a new step size (after failing) or a better solution
 gradientDescent ::
   forall c n a.
   (c a, c (AD.Value a), KnownNat n, Ord a, Num a) =>
-  Config a ->
+  Config n a ->
   ErrorFunc c n ->
   Sized Vector n a ->
   [Either a (Solution n a)]
@@ -55,7 +57,7 @@ gradientDescent Config {..} errFn initial =
 
     findStep :: Bool -> a -> Sized Vector n a -> a -> Sized Vector n a -> [Either a (Solution n a)]
     findStep firstTry stepSize xs err xs' =
-      let nextXs = Sized.zipWithSame (\x x' -> x - x' * stepSize) xs xs'
+      let nextXs = cfgNormalize $ Sized.zipWithSame (\x x' -> x - x' * stepSize) xs xs'
           nextErr = errFn nextXs
           shrunk = cfgShrink * stepSize
        in if nextErr < err
