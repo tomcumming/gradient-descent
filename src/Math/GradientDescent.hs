@@ -2,6 +2,7 @@ module Math.GradientDescent
   ( ErrorFunc,
     Config (..),
     Solution (..),
+    defaultConfig,
     gradientDescent,
     gradient,
   )
@@ -28,6 +29,14 @@ data Solution n a = Solution
     solParams :: Sized Vector n a
   }
   deriving (Show)
+
+defaultConfig :: Fractional a => Config a
+defaultConfig =
+  Config
+    { cfgInitialStepSize = 1,
+      cfgGrow = 2,
+      cfgShrink = 0.5
+    }
 
 -- | Returns a stream of either a new step size (after failing) or a better solution
 gradientDescent ::

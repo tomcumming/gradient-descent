@@ -7,7 +7,7 @@ import Data.Sized qualified as Sized
 import Data.Type.Ordinal (ordToNatural)
 import Data.Vector (Vector)
 import GHC.TypeLits (KnownNat)
-import Math.GradientDescent (Config (..), ErrorFunc, Solution (..), gradientDescent)
+import Math.GradientDescent (ErrorFunc, Solution (..), defaultConfig, gradientDescent)
 import Test.Falsify.Generator qualified as Gen
 import Test.Falsify.Range qualified as Range
 import Test.Tasty (defaultMain)
@@ -25,13 +25,12 @@ easyConcave origin =
 
 easyConcaveProp :: Property ()
 easyConcaveProp = do
-  let cfg = Config {cfgInitialStepSize = 1, cfgGrow = 2, cfgShrink = 0.5}
   let zero :: Sized Vector 3 Double = Sized.replicate' 0
   [x, y, z] <-
     replicateM 3 $
       realToFrac <$> gen (Gen.integral $ Range.withOrigin (-10, 10) (0 :: Int))
   let origin :: Sized Vector 3 Double = Sized.unsafeFromList' [x, y, z]
-  let steps = take 10 $ gradientDescent @Fractional cfg (easyConcave origin) zero
+  let steps = take 10 $ gradientDescent @Fractional defaultConfig (easyConcave origin) zero
   let solutions = concatMap (either (const []) pure) steps
   case listToMaybe (reverse solutions) of
     Nothing -> fail "No solutions found"
