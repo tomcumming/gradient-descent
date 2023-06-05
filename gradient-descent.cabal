@@ -19,11 +19,15 @@ common shared
     build-depends:
         base ^>=4.16.4.0,
         vector,
-        sized
+        sized,
+        type-natural
 
 library
     import:           shared
-    exposed-modules: Math.AD, Math.GradientDescent
+    exposed-modules:
+        Math.AD
+        Math.GradientDescent
+        Math.GradientDescent.Unsized
     hs-source-dirs:   src
     build-depends:
         indexed-traversable
