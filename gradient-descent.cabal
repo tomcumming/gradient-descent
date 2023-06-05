@@ -17,17 +17,13 @@ common shared
         DataKinds
         RecordWildCards
     build-depends:
-        base ^>=4.16.4.0,
-        vector,
-        sized,
-        type-natural
+        base ^>=4.16.4.0
 
 library
     import:           shared
     exposed-modules:
         Math.AD
         Math.GradientDescent
-        Math.GradientDescent.Unsized
     hs-source-dirs:   src
     build-depends:
         indexed-traversable

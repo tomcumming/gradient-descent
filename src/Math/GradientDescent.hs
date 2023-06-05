@@ -8,30 +8,27 @@ module Math.GradientDescent
   )
 where
 
-import Data.Functor.WithIndex (imap)
-import Data.Sized (Sized)
-import Data.Sized qualified as Sized
-import Data.Vector (Vector)
-import GHC.TypeLits (KnownNat)
+import Data.Foldable (toList)
+import Data.Traversable (mapAccumL)
 import Math.AD qualified as AD
 
-type ErrorFunc c n = forall b. c b => Sized Vector n b -> b
+type ErrorFunc c f = forall a. c a => f a -> a
 
-data Config n a = Config
+data Config t a = Config
   { cfgInitialStepSize :: a,
     cfgGrow :: a,
     cfgShrink :: a,
     -- | Normalize parameters after moving down gradient
-    cfgNormalize :: Sized Vector n a -> Sized Vector n a
+    cfgNormalize :: t a -> t a
   }
 
-data Solution n a = Solution
+data Solution t a = Solution
   { solError :: a,
-    solParams :: Sized Vector n a
+    solParams :: t a
   }
   deriving (Show)
 
-defaultConfig :: Fractional a => Config n a
+defaultConfig :: Fractional a => Config t a
 defaultConfig =
   Config
     { cfgInitialStepSize = 1,
@@ -40,24 +37,23 @@ defaultConfig =
       cfgNormalize = id
     }
 
--- | Returns a stream of either a new step size (after failing) or a better solution
 gradientDescent ::
-  forall c n a.
-  (c a, c (AD.Value a), KnownNat n, Ord a, Num a) =>
-  Config n a ->
-  ErrorFunc c n ->
-  Sized Vector n a ->
-  [Either a (Solution n a)]
+  forall c t a.
+  (c a, c (AD.Value a), Traversable t, Ord a, Num a) =>
+  Config t a ->
+  ErrorFunc c t ->
+  t a ->
+  [Either a (Solution t a)]
 gradientDescent Config {..} errFn initial =
   let initialErr = errFn initial
    in Right (Solution initialErr initial) : findSolution cfgInitialStepSize initial (errFn initial)
   where
-    findSolution :: a -> Sized Vector n a -> a -> [Either a (Solution n a)]
+    findSolution :: a -> t a -> a -> [Either a (Solution t a)]
     findSolution stepSize xs err = findStep True stepSize xs err (gradient @c errFn xs)
 
-    findStep :: Bool -> a -> Sized Vector n a -> a -> Sized Vector n a -> [Either a (Solution n a)]
+    findStep :: Bool -> a -> t a -> a -> t a -> [Either a (Solution t a)]
     findStep firstTry stepSize xs err xs' =
-      let nextXs = cfgNormalize $ Sized.zipWithSame (\x x' -> x - x' * stepSize) xs xs'
+      let nextXs = cfgNormalize $ zipWithT (\x x' -> x - x' * stepSize) xs xs'
           nextErr = errFn nextXs
           shrunk = cfgShrink * stepSize
        in if nextErr < err
@@ -66,18 +62,31 @@ gradientDescent Config {..} errFn initial =
                 : findSolution (stepSize * if firstTry then cfgGrow else 1) nextXs nextErr
             else Left shrunk : findStep False shrunk xs err xs'
 
+zipWithT :: Traversable t => (a -> b -> c) -> t a -> t b -> t c
+zipWithT f xs =
+  snd
+    . mapAccumL
+      ( \xs' y -> case xs' of
+          [] -> error "Size mismatch!"
+          (x : xs'') -> (xs'', f x y)
+      )
+      (toList xs)
+
 gradient ::
-  forall c n a.
-  (c a, c (AD.Value a), KnownNat n, Num a) =>
-  ErrorFunc c n ->
-  Sized Vector n a ->
-  Sized Vector n a
-gradient errFn xs = (\(AD.Value _ x') -> x') <$> vals
+  forall c t a.
+  (Traversable t, Num a, c (AD.Value a)) =>
+  ErrorFunc c t ->
+  t a ->
+  t a
+gradient errFn xs = snd $ mapAccumL go 0 xs
   where
-    vals =
-      imap
-        ( \idx _ ->
-            let ps = imap (\idx2 x -> (if idx == idx2 then AD.variable else AD.constant) x) xs
-             in errFn ps
-        )
-        xs
+    go :: Int -> a -> (Int, a)
+    go idx1 _ =
+      let params =
+            snd $
+              mapAccumL
+                (\idx2 x -> (succ idx2, (if idx1 == idx2 then AD.variable else AD.constant) x))
+                0
+                xs
+          (AD.Value _ x') = errFn params
+       in (succ idx1, x')
