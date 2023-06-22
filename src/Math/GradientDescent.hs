@@ -1,5 +1,6 @@
 module Math.GradientDescent
-  ( ErrorFunc,
+  ( Parameterized (..),
+    ErrorFunc,
     Config (..),
     Solution (..),
     defaultConfig,
@@ -11,6 +12,9 @@ where
 import Data.Foldable (toList)
 import Data.Traversable (mapAccumL)
 import Math.AD qualified as AD
+
+class Traversable t => Parameterized t where
+  parameters :: t a -> [t a -> a -> t a]
 
 type ErrorFunc c f = forall a. c a => f a -> a
 
@@ -39,7 +43,7 @@ defaultConfig =
 
 gradientDescent ::
   forall c t a.
-  (c a, c (AD.Value a), Traversable t, Ord a, Num a) =>
+  (c a, c (AD.Value a), Parameterized t, Ord a, Num a) =>
   Config t a ->
   ErrorFunc c t ->
   t a ->
@@ -62,7 +66,21 @@ gradientDescent Config {..} errFn initial =
                 : findSolution (stepSize * if firstTry then cfgGrow else 1) nextXs nextErr
             else Left shrunk : findStep False shrunk xs err xs'
 
-zipWithT :: Traversable t => (a -> b -> c) -> t a -> t b -> t c
+gradient ::
+  forall c t a.
+  (Parameterized t, Num a, c (AD.Value a)) =>
+  ErrorFunc c t ->
+  t a ->
+  t a
+gradient errFn xs =
+  zipWithT
+    (\s x -> let AD.Value _ x' = errFn $ s xs' (AD.variable x) in x')
+    (parameters xs')
+    xs
+  where
+    xs' = AD.constant <$> xs
+
+zipWithT :: (Traversable t, Foldable f) => (a -> b -> c) -> f a -> t b -> t c
 zipWithT f xs =
   snd
     . mapAccumL
@@ -71,22 +89,3 @@ zipWithT f xs =
           (x : xs'') -> (xs'', f x y)
       )
       (toList xs)
-
-gradient ::
-  forall c t a.
-  (Traversable t, Num a, c (AD.Value a)) =>
-  ErrorFunc c t ->
-  t a ->
-  t a
-gradient errFn xs = snd $ mapAccumL go 0 xs
-  where
-    go :: Int -> a -> (Int, a)
-    go idx1 _ =
-      let params =
-            snd $
-              mapAccumL
-                (\idx2 x -> (succ idx2, (if idx1 == idx2 then AD.variable else AD.constant) x))
-                0
-                xs
-          (AD.Value _ x') = errFn params
-       in (succ idx1, x')

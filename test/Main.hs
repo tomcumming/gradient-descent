@@ -2,7 +2,7 @@ module Main (main) where
 
 import Control.Monad (replicateM)
 import Data.Maybe (listToMaybe)
-import Math.GradientDescent (ErrorFunc, Solution (..), defaultConfig, gradientDescent)
+import Math.GradientDescent (ErrorFunc, Parameterized, Solution (..), defaultConfig, gradientDescent, parameters)
 import Test.Falsify.Generator qualified as Gen
 import Test.Falsify.Range qualified as Range
 import Test.Tasty (defaultMain)
@@ -14,6 +14,13 @@ data Params a = Params
     pZ :: a
   }
   deriving (Functor, Foldable, Traversable)
+
+instance Parameterized Params where
+  parameters _ =
+    [ \ps pX -> ps {pX},
+      \ps pY -> ps {pY},
+      \ps pZ -> ps {pZ}
+    ]
 
 easyConcave :: (Double, Double, Double) -> ErrorFunc Fractional Params
 easyConcave (ox, oy, oz) Params {..} =

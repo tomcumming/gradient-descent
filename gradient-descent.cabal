@@ -26,7 +26,6 @@ library
         Math.GradientDescent
     hs-source-dirs:   src
     build-depends:
-        indexed-traversable
 
 test-suite gradient-descent-test
     import:           shared
@@ -35,6 +34,5 @@ test-suite gradient-descent-test
     main-is:          Main.hs
     build-depends:
         gradient-descent,
-        type-natural,
         tasty,
         falsify
