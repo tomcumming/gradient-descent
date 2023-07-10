@@ -1,10 +1,9 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-22.11";
-    unixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-23.05";
   };
 
-  outputs = { self, nixpkgs, unixpkgs }:
+  outputs = { self, nixpkgs }:
     let
       systems = [ "aarch64-darwin" ];
     in
@@ -12,16 +11,15 @@
       (ss: s:
         let
           pkgs = nixpkgs.legacyPackages."${s}";
-          upkgs = unixpkgs.legacyPackages."${s}";
         in
         ss //
         {
           devShells."${s}".default = pkgs.mkShell {
             packages = [
-              upkgs.cabal-install
-              upkgs.ghc
-              upkgs.haskellPackages.haskell-language-server
-              upkgs.ormolu
+              pkgs.cabal-install
+              pkgs.ghc
+              pkgs.haskellPackages.haskell-language-server
+              pkgs.ormolu
             ];
           };
           formatter."${s}" = nixpkgs.legacyPackages."${s}".nixpkgs-fmt;
