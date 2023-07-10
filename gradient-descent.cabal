@@ -14,10 +14,12 @@ common shared
     ghc-options: -Wall
     default-language: GHC2021
     default-extensions:
-        DataKinds
+        LambdaCase
         RecordWildCards
+        FunctionalDependencies
     build-depends:
-        base ^>=4.16.4.0
+        base ^>=4.16.4.0,
+        containers
 
 library
     import:           shared
