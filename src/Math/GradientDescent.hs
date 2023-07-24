@@ -2,34 +2,43 @@ module Math.GradientDescent
   ( Config (..),
     Solution (..),
     Step (..),
-    ScoreFn,
+    IntoScalar (..),
+    Correct (..),
+    Error (..),
     defaultConfig,
     gradientDescent,
     score,
-    gradient,
   )
 where
 
-import Data.Map qualified as M
+import Control.Monad.Identity (Identity (..), runIdentity)
+import Control.Monad.State.Strict (evalState, state)
+import Data.Foldable (toList)
 import Math.AD qualified as AD
+import Math.GradientDescent.Gradient
 
-data Config k a = Config
-  { cfgInitialStepSize :: Double,
-    cfgGrow :: Double,
-    cfgShrink :: Double,
+class (Num s, Ord s) => IntoScalar s a | a -> s where
+  intoScalar :: a -> Maybe s
+
+-- | \k x' x -> x - k * x'
+class Correct s a | a -> s where
+  correct :: s -> a -> a -> a
+
+data Config p s a = Config
+  { cfgInitialStepSize :: s,
+    cfgGrow :: s,
+    cfgShrink :: s,
     -- | Normalize parameters after moving down gradient
-    cfgNormalize :: M.Map k a -> M.Map k a
+    cfgNormalize :: p a -> p a
   }
 
-type ScoreFn k a = M.Map k (AD.Value a) -> AD.Value a
-
-data Solution k a = Solution
-  { solError :: Double,
-    solParams :: M.Map k a
+data Solution p s a = Solution
+  { solError :: s,
+    solParams :: p a
   }
   deriving (Show)
 
-defaultConfig :: Config t a
+defaultConfig :: Fractional s => Config p s a
 defaultConfig =
   Config
     { cfgInitialStepSize = 1,
@@ -38,32 +47,36 @@ defaultConfig =
       cfgNormalize = id
     }
 
-data Step k a
+data Step p s a
   = -- | New guess was no better, new step size
-    Miss Double
-  | Improvement (Solution k a)
+    Miss s
+  | Improvement (Solution p s a)
+  deriving (Show)
+
+newtype Error a
+  = ScoreNonScalar a
   deriving (Show)
 
 gradientDescent ::
-  forall e k a.
-  (Ord k, AD.AD e a, Show k, Show a) =>
-  Config k a ->
-  ScoreFn k a ->
-  M.Map k a ->
-  [Either e (Step k a)]
+  forall s a p.
+  (Traversable p, IntoScalar s a, Correct s a, AD.Zero a, AD.One a) =>
+  Config p s a ->
+  ScoreFn p a ->
+  p a ->
+  [Either (Error a) (Step p s a)]
 gradientDescent Config {..} scoreFn initial = case score scoreFn initial of
   Left e -> [Left e]
   Right s -> findSolution cfgInitialStepSize initial s
   where
-    findSolution :: Double -> M.Map k a -> Double -> [Either e (Step k a)]
-    findSolution stepSize ps s = findStep True stepSize ps s $ gradient scoreFn ps
+    findSolution :: s -> p a -> s -> [Either (Error a) (Step p s a)]
+    findSolution stepSize ps s =
+      findStep True stepSize ps s $ gradient scoreFn ps
 
-    findStep :: Bool -> Double -> M.Map k a -> Double -> M.Map k a -> [Either e (Step k a)]
+    findStep :: Bool -> s -> p a -> s -> p a -> [Either (Error a) (Step p s a)]
     findStep firstTry stepSize ps s grad =
       let next = do
-            nextPs <- cfgNormalize <$> subScaledGradient ps stepSize grad
+            let nextPs = cfgNormalize $ correctParams stepSize grad ps
             nextScore <- score scoreFn nextPs
-
             pure (nextPs, nextScore)
        in case next of
             Left e -> [Left e]
@@ -71,33 +84,36 @@ gradientDescent Config {..} scoreFn initial = case score scoreFn initial of
               if nextScore < s
                 then
                   Right (Improvement (Solution nextScore nextPs))
-                    : findSolution (stepSize * if firstTry then cfgGrow else 1) nextPs nextScore
+                    : findSolution
+                      (stepSize * if firstTry then cfgGrow else 1)
+                      nextPs
+                      nextScore
                 else
                   Right (Miss stepSize)
                     : findStep False (cfgShrink * stepSize) ps s grad
 
-subScaledGradient ::
-  (AD.AD e a, Ord k) =>
-  M.Map k a ->
-  Double ->
-  M.Map k a ->
-  Either e (M.Map k a)
-subScaledGradient ps k =
-  sequence
-    . M.intersectionWith
-      (\p g -> AD.addScaled p (-k) g)
-      ps
+-- | scale -> grad -> params -> new params
+correctParams :: (Traversable p, Correct s a) => s -> p a -> p a -> p a
+correctParams s xs' xs =
+  evalState
+    ( traverse
+        ( \x -> state $ \case
+            [] -> error "Gradient and parameters of different length"
+            (x' : xs'') -> (correct s x' x, xs'')
+        )
+        xs
+    )
+    (toList xs')
 
-score :: AD.AD e a => ScoreFn k a -> M.Map k a -> Either e Double
-score f ps = AD.intoDouble . AD.valZero $ f (AD.constant <$> ps)
-
-gradient ::
-  forall e k a.
-  (Ord k, AD.AD e a) =>
-  ScoreFn k a ->
-  M.Map k a ->
-  M.Map k a
-gradient f ps = AD.valFirst <$> M.mapWithKey go ps
+score ::
+  (Functor p, IntoScalar s a, AD.Zero a) =>
+  ScoreFn p a ->
+  p a ->
+  Either (Error a) s
+score f ps = maybe (Left $ ScoreNonScalar val) Right $ intoScalar val
   where
-    ps' = AD.constant <$> ps
-    go k p = f $ M.insert k (AD.variable p) ps'
+    val = AD.valZero $ runIdentity $ f ps
+
+instance IntoScalar Double Double where intoScalar = Just
+
+instance Correct Double Double where correct k x' x = x - k * x'

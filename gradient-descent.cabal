@@ -26,14 +26,20 @@ library
     exposed-modules:
         Math.AD
         Math.GradientDescent
+        Math.GradientDescent.Gradient
     hs-source-dirs:   src
     build-depends:
+        mtl
 
 test-suite gradient-descent-test
     import:           shared
     type:             exitcode-stdio-1.0
     hs-source-dirs:   test
     main-is:          Main.hs
+    other-modules:
+        Asteroid
+        Asteroid.Math
+        SinWave
     build-depends:
         gradient-descent,
         tasty,
