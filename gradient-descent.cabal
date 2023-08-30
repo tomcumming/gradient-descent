@@ -1,14 +1,11 @@
-cabal-version:      3.4
-name:               gradient-descent
-version:            0.0.0.1
--- synopsis:
--- description:
-license:            MIT
-license-file:       LICENSE
-author:             Tom Cumming
-maintainer:         mail@tomcumming.co.uk
--- copyright:
-category:           Math
+cabal-version: 3.4
+name: gradient-descent
+version: 1.0.0.0
+license: MIT
+license-file: LICENSE
+author: Tom Cumming
+maintainer: mail@tomcumming.co.uk
+category: Math
 
 common shared
     ghc-options: -Wall
@@ -19,28 +16,20 @@ common shared
         FunctionalDependencies
     build-depends:
         base ^>=4.16.4.0,
-        containers
-
-library
-    import:           shared
-    exposed-modules:
-        Math.AD
-        Math.GradientDescent
-        Math.GradientDescent.Gradient
-    hs-source-dirs:   src
-    build-depends:
         mtl
 
+library
+    import: shared
+    exposed-modules:
+        Math.GradientDescent
+        Math.GradientDescent.Params
+    hs-source-dirs: src
+
 test-suite gradient-descent-test
-    import:           shared
-    type:             exitcode-stdio-1.0
-    hs-source-dirs:   test
-    main-is:          Main.hs
+    import: shared
+    type: exitcode-stdio-1.0
+    hs-source-dirs: test
+    main-is: Main.hs
     other-modules:
-        Asteroid
-        Asteroid.Math
-        SinWave
     build-depends:
-        gradient-descent,
-        tasty,
-        falsify
+        gradient-descent
